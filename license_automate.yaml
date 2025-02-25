@@ -24,6 +24,10 @@
         return_content: yes
       register: pending_requests
 
+    - name: Display pending requests
+      debug:
+        var: pending_requests.json.result
+    
     # - name: Check license availability
     #   set_fact:
     #     available_licenses: "{{ lookup('azure_rm_resource', 'licenses', subscription_id=azure_subscription_id) }}"

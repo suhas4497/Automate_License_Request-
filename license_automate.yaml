@@ -12,8 +12,8 @@
     smtp_port: 587
     email_sender: "noreply@yourcompany.com"
     email_password: "your_email_password"
-
-tasks:
+ 
+  tasks:
     - name: Get pending requests from ServiceNow
       uri:
         url: "{{ servicenow_instance }}/api/now/table/{{ servicenow_table }}?sysparm_query=state=pending"

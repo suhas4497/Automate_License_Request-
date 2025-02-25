@@ -3,10 +3,10 @@
   hosts: localhost
   gather_facts: no
   vars:
-    servicenow_instance: "https://dev262979.service-now.com/"
-    servicenow_username: "elt_agent"
-    servicenow_password: "o@.CSQwgo^z6W!s6"
-    servicenow_table: "sc_req_item"
+    servicenow_instance: "https://dev247928.service-now.com/"
+    servicenow_username: "admin"
+    servicenow_password: "%ml4Vs9RXE/s"
+    servicenow_table: "sc_request"
     azure_subscription_id: "your_subscription_id"
     smtp_server: "smtp.yourdomain.com"
     smtp_port: 587

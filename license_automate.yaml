@@ -3,7 +3,7 @@
   hosts: localhost
   gather_facts: no
   vars:
-    servicenow_instance: "https://dev247928.service-now.com/"
+    servicenow_instance: "https://dev247928.service-now.com"
     servicenow_username: "admin"
     servicenow_password: "%ml4Vs9RXE/s"
     servicenow_table: "sc_request"
@@ -11,7 +11,7 @@
   tasks:
     - name: Get pending requests from ServiceNow
       ansible.builtin.uri:
-        url: "{{ servicenow_instance }}/api/now/table/{servicenow_table}"
+        url: "{{ servicenow_instance }}/api/now/table/{servicenow_table}" # https://dev247928.service-now.com/api/now/table/sc_request
         method: GET
         user: "{{ servicenow_username }}"
         password: "{{ servicenow_password }}"

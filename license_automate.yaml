@@ -6,7 +6,7 @@
     servicenow_instance: "https://dev262979.service-now.com/"
     servicenow_username: "elt_agent"
     servicenow_password: "o@.CSQwgo^z6W!s6"
-    servicenow_table: "sc_request_list"
+    servicenow_table: "sc_req_item"
     azure_subscription_id: "your_subscription_id"
     smtp_server: "smtp.yourdomain.com"
     smtp_port: 587

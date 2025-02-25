@@ -1,0 +1,96 @@
+---
+- name: Automate License Request Workflow
+  hosts: localhost
+  gather_facts: no
+  vars:
+    servicenow_instance: "https://dev262979.service-now.com/"
+    servicenow_username: "elt_agent"
+    servicenow_password: "o@.CSQwgo^z6W!s6"
+    servicenow_table: "sc_request"
+    azure_subscription_id: "your_subscription_id"
+    smtp_server: "smtp.yourdomain.com"
+    smtp_port: 587
+    email_sender: "noreply@yourcompany.com"
+    email_password: "your_email_password"
+
+  tasks:
+    - name: Get pending requests from ServiceNow
+      uri:
+        url: "{{ servicenow_instance }}/api/now/table/{{ servicenow_table }}?sysparm_query=state=pending"
+        method: GET
+        user: "{{ servicenow_username }}"
+        password: "{{ servicenow_password }}"
+        force_basic_auth: yes
+        return_content: yes
+      register: pending_requests
+
+    - name: Check license availability
+      set_fact:
+        available_licenses: "{{ lookup('azure_rm_resource', 'licenses', subscription_id=azure_subscription_id) }}"
+
+    - name: Process each request
+      loop: "{{ pending_requests.json.result }}"
+      loop_control:
+        loop_var: request
+      tasks:
+        - name: Approve and assign license if available
+          when: request.license_type in available_licenses
+          block:
+            - name: Update request status to approved
+              uri:
+                url: "{{ servicenow_instance }}/api/now/table/{{ servicenow_table }}/{{ request.sys_id }}"
+                method: PATCH
+                user: "{{ servicenow_username }}"
+                password: "{{ servicenow_password }}"
+                force_basic_auth: yes
+                body_format: json
+                body:
+                  state: "approved"
+
+            - name: Assign license
+              command: "/path/to/license_assignment_script {{ request.license_type }} {{ request.user_email }}"
+
+            - name: Update request status to resolved
+              uri:
+                url: "{{ servicenow_instance }}/api/now/table/{{ servicenow_table }}/{{ request.sys_id }}"
+                method: PATCH
+                user: "{{ servicenow_username }}"
+                password: "{{ servicenow_password }}"
+                force_basic_auth: yes
+                body_format: json
+                body:
+                  state: "resolved"
+
+            - name: Send confirmation email
+              mail:
+                host: "{{ smtp_server }}"
+                port: "{{ smtp_port }}"
+                username: "{{ email_sender }}"
+                password: "{{ email_password }}"
+                to: "{{ request.user_email }}"
+                subject: "License Assigned"
+                body: "Your {{ request.license_type }} license has been successfully assigned."
+
+        - name: Mark request as pending if license unavailable
+          when: request.license_type not in available_licenses
+          block:
+            - name: Update request status to pending
+              uri:
+                url: "{{ servicenow_instance }}/api/now/table/{{ servicenow_table }}/{{ request.sys_id }}"
+                method: PATCH
+                user: "{{ servicenow_username }}"
+                password: "{{ servicenow_password }}"
+                force_basic_auth: yes
+                body_format: json
+                body:
+                  state: "pending"
+
+            - name: Send pending notification email
+              mail:
+                host: "{{ smtp_server }}"
+                port: "{{ smtp_port }}"
+                username: "{{ email_sender }}"
+                password: "{{ email_password }}"
+                to: "{{ request.user_email }}"
+                subject: "License Request Pending"
+                body: "Your requested license is currently unavailable."

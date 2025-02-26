@@ -102,14 +102,11 @@
                 {%- set license_type = request.short_description -%}
                 {%- set clean_license_type = license_type | lower | regex_replace(' requested', '') -%}
                 {%- set found = false -%}
-                {%- for license in azure_license_response.json.value -%}
-                  {%- if license.skuPartNumber | lower == clean_license_type and license.prepaidUnits.enabled > license.consumedUnits -%}
-                    {%- set _ = status_map.update({request_sys_id: 'approved'}) -%}
-                    {%- set found = true -%}
-                  {%- endif -%}
-                {%- endfor -%}
-                {%- if not found -%}
-                  {%- set _ = status_map.update({request_sys_id: 'rejected'}) -%}
+                {%- if azure_license_response.json.value | length > 0 -%}  # Check if Azure has licenses
+                  {%- set _ = status_map.update({request_sys_id: 'approved'}) -%}  # Approve if licenses available
+                  {%- set found = true -%}
+                {%- else -%}
+                  {%- set _ = status_map.update({request_sys_id: 'rejected'}) -%}  # Reject if no licenses
                 {%- endif -%}
               {%- endfor -%}
               {{ status_map }}

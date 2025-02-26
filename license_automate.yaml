@@ -31,6 +31,18 @@
             items2dict(key_name='number', value_name='short_description')
           }}
 
+    - name: Display request details
+      debug:
+        msg: |
+          {% for request in servicenow_response.json.result %}
+          Request Number: {{ request.get('number', 'N/A') }}
+          User ID (Requested For): {{ request.get('requested_for', {}).get('value', 'Unknown') }}
+          User ID (Opened By): {{ request.get('opened_by', {}).get('value', 'Unknown') }}
+          Requested License Type: {{ request.get('short_description', 'Not Provided') }}
+          Description: {{ request.get('description', 'Not Provided') }}
+          ------------------------------------------------
+          {% endfor %}
+
     - name: Get Azure access token
       uri:
         url: "https://login.microsoftonline.com/{{ tenant_id }}/oauth2/v2.0/token"
@@ -58,7 +70,7 @@
         return_content: yes
       register: azure_license_response
 
-    - name: Add dummy license data for testing (remove this after real licenses are available)
+    - name: Add dummy license data for testing (remove this after real data is available)
       set_fact:
         azure_license_response:
           json:
@@ -78,30 +90,16 @@
       set_fact:
         approval_status_map: >-
           {{
-            requested_license_map | 
-            dict2items | 
-            items2dict(
-              key_name='key', 
-              value_name='value',
-              value=lambda item: 'approved' if item.value in (azure_license_response.json.value | map(attribute='skuPartNumber') | list) else 'rejected'
-            )
+            dict(requested_license_map | dict2items | map(attribute='key') | zip(
+              requested_license_map | dict2items | map(attribute='value') | map('trim') |
+              map('in', azure_license_response.json.value | map(attribute='skuPartNumber') | list) |
+              map('ternary', 'approved', 'rejected')
+            ))
           }}
 
-    - name: Verify if Request Exists in ServiceNow
+    - name: Update ServiceNow request status
       uri:
-        url: "{{ servicenow_instance }}/api/now/table/{{ servicenow_table }}?sysparm_query=number={{ item.key }}"
-        method: GET
-        user: "{{ servicenow_username }}"
-        password: "{{ servicenow_password }}"
-        force_basic_auth: yes
-        return_content: yes
-      register: request_check
-      failed_when: request_check.json.result | length == 0
-      loop: "{{ approval_status_map | dict2items }}"
-
-    - name: Update Approval Status in ServiceNow
-      uri:
-        url: "{{ servicenow_instance }}/api/now/table/{{ servicenow_table }}/{{ request_check.results[item.index].json.result[0].sys_id }}"
+        url: "{{ servicenow_instance }}/api/now/table/{{ servicenow_table }}"
         method: PATCH
         user: "{{ servicenow_username }}"
         password: "{{ servicenow_password }}"
@@ -109,15 +107,12 @@
         headers:
           Content-Type: "application/json"
         body_format: json
-        body:
-          approval: "{{ item.value }}"
-        return_content: yes
+        body: >-
+          {{
+            {
+              "state": "approved" if approval_status_map[item.key] == "approved" else "rejected"
+            }
+          }}
       loop: "{{ approval_status_map | dict2items }}"
       loop_control:
-        index_var: index
-      when: request_check.results[item.index].json.result | length > 0
-
-    - name: Display request approval results
-      debug:
-        msg: "Request {{ item.key }} has been {{ item.value }}"
-      loop: "{{ approval_status_map | dict2items }}"
+        label: "Updating request {{ item.key }} to {{ item.value }}"

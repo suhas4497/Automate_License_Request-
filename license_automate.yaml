@@ -93,20 +93,20 @@
 
     - name: Process License Approval
       block:
+        - name: Initialize approval status map
+          set_fact:
+            approval_status_map: {}
+
         - name: Check License Availability
           set_fact:
             approval_status_map: >-
-              {%- set status_map = {} -%}
+              {%- set status_map = approval_status_map -%}
               {%- for request in servicenow_response.json.result -%}
                 {%- set request_sys_id = request.sys_id -%}
-                {%- set license_type = request.short_description -%}
-                {%- set clean_license_type = license_type | lower | regex_replace(' requested', '') -%}
-                {%- set found = false -%}
-                {%- if azure_license_response.json.value | length > 0 -%}  # Check if Azure has licenses
-                  {%- set _ = status_map.update({request_sys_id: 'approved'}) -%}  # Approve if licenses available
-                  {%- set found = true -%}
+                {%- if servicenow_response.json.result | length > 0 -%}  # Check if ServiceNow has requests
+                  {%- set _ = status_map.update({request_sys_id: 'approved'}) -%}  # Approve if requests are present
                 {%- else -%}
-                  {%- set _ = status_map.update({request_sys_id: 'rejected'}) -%}  # Reject if no licenses
+                  {%- set _ = status_map.update({request_sys_id: 'rejected'}) -%}  # Reject if no requests
                 {%- endif -%}
               {%- endfor -%}
               {{ status_map }}

@@ -5,11 +5,11 @@
   vars:
     servicenow_instance: "https://dev247928.service-now.com"
     servicenow_username: "admin"
-    servicenow_password: "%ml4Vs9RXE/s"
+    servicenow_password: "password"
     servicenow_table: "sc_request"
-    tenant_id: "195e8969-c853-47b4-83d0-36e044d83923"
-    client_id: "e2e46ae3-2dee-4eed-a074-ddffd760ab2b"
-    client_secret: "PQZ8Q~XSmMsU4dbgk2KyWMHK1h8X7ciD~H.1_csi"
+    tenant_id: "tenant-id"
+    client_id: "client-id"
+    client_secret: "client-secret"
     graph_api_endpoint: "https://graph.microsoft.com/v1.0"
 
   tasks:
@@ -33,15 +33,7 @@
 
     - name: Display request details
       debug:
-        msg: |
-          {% for request in servicenow_response.json.result %}
-          Request sys_id: {{ request.get('sys_id', 'N/A') }}
-          User ID (Requested For): {{ request.get('requested_for', {}).get('value', 'Unknown') }}
-          User ID (Opened By): {{ request.get('opened_by', {}).get('value', 'Unknown') }}
-          Requested License Type: {{ request.get('short_description', 'Not Provided') }}
-          Description: {{ request.get('description', 'Not Provided') }}
-          ------------------------------------------------
-          {% endfor %}
+        msg: "{{ requested_license_map }}"
 
     - name: Get Azure access token
       uri:
@@ -60,15 +52,15 @@
       set_fact:
         access_token: "{{ azure_auth_response.json.access_token }}"
 
-    - name: Check License Availability in Azure
-      uri:
-        url: "{{ graph_api_endpoint }}/subscribedSkus"
-        method: GET
-        headers:
-          Authorization: "Bearer {{ access_token }}"
-          Content-Type: "application/json"
-        return_content: yes
-      register: azure_license_response
+    - name: Manually Set License Data for Testing
+      set_fact:
+        azure_license_response:
+          json:
+            value:
+              - skuPartNumber: "dummy-license-1"
+                prepaidUnits:
+                  enabled: 10
+                consumedUnits: 7
 
     - name: Debug available Azure licenses
       debug:
@@ -94,6 +86,10 @@
                 {%- endif -%}
               {%- endfor -%}
               {{ status_map }}
+
+        - name: Debug License Matching
+          debug:
+            msg: "Checking Requested License: {{ clean_license_type }} against Azure License: {{ license.skuPartNumber }} (Enabled: {{ license.prepaidUnits.enabled }}, Consumed: {{ license.consumedUnits }})"
 
         - name: Debug approval status mapping
           debug:

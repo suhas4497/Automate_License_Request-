@@ -61,7 +61,23 @@
           Content-Type: "application/json"
         return_content: yes
       register: azure_license_response
-    
+      
+    - name: Add dummy license data for testing (remove this after u have real lic)
+      set_fact:
+        azure_license_response:
+          json:
+            value:
+              - id: "dummy-license-1"
+                skuPartNumber: "TEST_LICENSE_1"
+                prepaidUnits:
+                  enabled: 5
+                consumedUnits: 3
+              - id: "dummy-license-2"
+                skuPartNumber: "TEST_LICENSE_2"
+                prepaidUnits:
+                  enabled: 10
+                consumedUnits: 7
+                
     - name: Display license availability
       debug:
         msg: "Available Licenses: {{ azure_license_response.json }}"      

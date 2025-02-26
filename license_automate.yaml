@@ -11,7 +11,7 @@
     client_id: "e2e46ae3-2dee-4eed-a074-ddffd760ab2b"
     client_secret: "PQZ8Q~XSmMsU4dbgk2KyWMHK1h8X7ciD~H.1_csi"
     graph_api_endpoint: "https://graph.microsoft.com/v1.0"
-    
+
   tasks:
     - name: Fetch pending requests from ServiceNow
       uri:
@@ -23,26 +23,19 @@
         return_content: yes
       register: servicenow_response
 
-    - name: Store Requested License Type
+    - name: Store Requested License Type with sys_id
       set_fact:
         requested_license_map: >-
-          {{
-            servicenow_response.json.result |
-            items2dict(key_name='number', value_name='short_description')
-          }}
-          
-    - name: Display request details
+          {%- set mapping = {} -%}
+          {%- for request in servicenow_response.json.result -%}
+            {%- set _ = mapping.update({ request.sys_id: request.short_description }) -%}
+          {%- endfor -%}
+          {{ mapping }}
+
+    - name: Debug sys_id before update
       debug:
-        msg: |
-          {% for request in servicenow_response.json.result %}
-          Request Number: {{ request.get('number', 'N/A') }}
-          User ID (Requested For): {{ request.get('requested_for', {}).get('value', 'Unknown') }}
-          User ID (Opened By): {{ request.get('opened_by', {}).get('value', 'Unknown') }}
-          Requested License Type: {{ request.get('short_description', 'Not Provided') }}
-          Description: {{ request.get('description', 'Not Provided') }}
-          ------------------------------------------------
-          {% endfor %}
-          
+        msg: "Mapping of sys_id to license request: {{ requested_license_map }}"
+
     - name: Get Azure access token
       uri:
         url: "https://login.microsoftonline.com/{{ tenant_id }}/oauth2/v2.0/token"
@@ -59,7 +52,7 @@
     - name: Set Azure token
       set_fact:
         access_token: "{{ azure_auth_response.json.access_token }}"
-    
+
     - name: Check License Availability in Azure
       uri:
         url: "{{ graph_api_endpoint }}/subscribedSkus"
@@ -69,8 +62,8 @@
           Content-Type: "application/json"
         return_content: yes
       register: azure_license_response
-      
-    - name: Add dummy license data for testing (remove this after u have real lic)
+
+    - name: Add dummy license data for testing (remove this after you have real data)
       set_fact:
         azure_license_response:
           json:
@@ -85,10 +78,10 @@
                 prepaidUnits:
                   enabled: 10
                 consumedUnits: 7
-                
+
     - name: Display license availability
       debug:
-        msg: "Available Licenses: {{ azure_license_response.json }}"
+        msg: "Available Licenses: {{ azure_license_response.json.value }}"
 
     - name: Process License Approval
       block:
@@ -96,22 +89,26 @@
           set_fact:
             approval_status_map: >-
               {%- set status_map = {} -%}
-              {%- for request_number, license_type in requested_license_map.items() -%}
+              {%- for sys_id, license_type in requested_license_map.items() -%}
                 {%- set clean_license_type = license_type | lower | regex_replace(' requested', '') -%}
                 {%- set found = false -%}
                 {%- for license in azure_license_response.json.value -%}
                   {%- if license.skuPartNumber | lower == clean_license_type -%}
-                    {%- set _ = status_map.update({request_number: 'approved'}) -%}
+                    {%- set _ = status_map.update({sys_id: 'approved'}) -%}
                     {%- set found = true -%}
                   {%- endif -%}
                 {%- endfor -%}
                 {%- if not found -%}
-                  {%- set _ = status_map.update({request_number: 'rejected'}) -%}
+                  {%- set _ = status_map.update({sys_id: 'rejected'}) -%}
                 {%- endif -%}
               {%- endfor -%}
               {{ status_map }}
 
-        - name: Update Approval Status in ServiceNow
+        - name: Debug approval status map before update
+          debug:
+            msg: "Approval status per sys_id: {{ approval_status_map }}"
+
+        - name: Update Approval Status in ServiceNow using sys_id
           uri:
             url: "{{ servicenow_instance }}/api/now/table/{{ servicenow_table }}/{{ item.key }}"
             method: PATCH
@@ -129,5 +126,4 @@
 
         - name: Display Approval Results
           debug:
-            msg: 
-              - "Approval Status Updated: {{ approval_status_map }}"
+            msg: "Approval Status Updated: {{ approval_status_map }}"

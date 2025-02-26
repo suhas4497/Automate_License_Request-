@@ -1,5 +1,5 @@
 ---
-- name: Automate License Request Workflow
+- name: Fetch Pending ServiceNow Requests
   hosts: localhost
   gather_facts: no
   vars:
@@ -7,92 +7,27 @@
     servicenow_username: "admin"
     servicenow_password: "%ml4Vs9RXE/s"
     servicenow_table: "sc_request"
- 
+
   tasks:
-    - name: Get pending requests from ServiceNow
-      ansible.builtin.uri:
-        url: "{{ servicenow_instance }}/api/now/table/{servicenow_table}" # https://dev247928.service-now.com/api/now/table/sc_request
+    - name: Fetch pending requests from ServiceNow
+      uri:
+        url: "{{ servicenow_instance }}/api/now/table/{{ servicenow_table }}"
         method: GET
         user: "{{ servicenow_username }}"
         password: "{{ servicenow_password }}"
         force_basic_auth: yes
-        headers:
-          Content-Type: "application/json"
         return_content: yes
-      register: pending_requests
-      
-    - name: Display pending requests
+        status_code: 200
+      register: response
+
+    - name: Display request details
       debug:
-        var: pending_requests.json.result
-    
-    # - name: Check license availability
-    #   set_fact:
-    #     available_licenses: "{{ lookup('azure_rm_resource', 'licenses', subscription_id=azure_subscription_id) }}"
-
-    # - name: Process each request
-    #   loop: "{{ pending_requests.json.result }}"
-    #   loop_control:
-    #     loop_var: request
-    #   when: request.license_type is defined
-    #   block:
-    #     - name: Approve and assign license if available
-    #       when: request.license_type in available_licenses
-    #       block:
-    #         - name: Update request status to approved
-    #           uri:
-    #             url: "{{ servicenow_instance }}/api/now/table/{{ servicenow_table }}/{{ request.sys_id }}"
-    #             method: PATCH
-    #             user: "{{ servicenow_username }}"
-    #             password: "{{ servicenow_password }}"
-    #             force_basic_auth: yes
-    #             body_format: json
-    #             body:
-    #               state: "approved"
-
-    #         - name: Assign license
-    #           command: "/path/to/license_assignment_script {{ request.license_type }} {{ request.user_email }}"
-
-    #         - name: Update request status to resolved
-    #           uri:
-    #             url: "{{ servicenow_instance }}/api/now/table/{{ servicenow_table }}/{{ request.sys_id }}"
-    #             method: PATCH
-    #             user: "{{ servicenow_username }}"
-    #             password: "{{ servicenow_password }}"
-    #             force_basic_auth: yes
-    #             body_format: json
-    #             body:
-    #               state: "resolved"
-
-    #         - name: Send confirmation email
-    #           mail:
-    #             host: "{{ smtp_server }}"
-    #             port: "{{ smtp_port }}"
-    #             username: "{{ email_sender }}"
-    #             password: "{{ email_password }}"
-    #             to: "{{ request.user_email }}"
-    #             subject: "License Assigned"
-    #             body: "Your {{ request.license_type }} license has been successfully assigned."
-
-    #     - name: Mark request as pending if license unavailable
-    #       when: request.license_type not in available_licenses
-    #       block:
-    #         - name: Update request status to pending
-    #           uri:
-    #             url: "{{ servicenow_instance }}/api/now/table/{{ servicenow_table }}/{{ request.sys_id }}"
-    #             method: PATCH
-    #             user: "{{ servicenow_username }}"
-    #             password: "{{ servicenow_password }}"
-    #             force_basic_auth: yes
-    #             body_format: json
-    #             body:
-    #               state: "pending"
-
-    #         - name: Send pending notification email
-    #           mail:
-    #             host: "{{ smtp_server }}"
-    #             port: "{{ smtp_port }}"
-    #             username: "{{ email_sender }}"
-    #             password: "{{ email_password }}"
-    #             to: "{{ request.user_email }}"
-    #             subject: "License Request Pending"
-    #             body: "Your requested license is currently unavailable."
+        msg: |
+          {% for request in response.json.result %}
+          Request Number: {{ request.get('number', 'N/A') }}
+          User ID (Requested For): {{ request.get('requested_for', {}).get('value', 'Unknown') }}
+          User ID (Opened By): {{ request.get('opened_by', {}).get('value', 'Unknown') }}
+          Requested License Type: {{ request.get('short_description', 'Not Provided') }}
+          Description: {{ request.get('description', 'Not Provided') }}
+          ------------------------------------------------
+          {% endfor %}

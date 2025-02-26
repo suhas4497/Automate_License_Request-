@@ -23,6 +23,14 @@
         return_content: yes
       register: servicenow_response
 
+    - name: Store Requested License Type
+      set_fact:
+        requested_license_map: >-
+          {{
+            servicenow_response.json.result |
+            items2dict(key_name='number', value_name='short_description')
+          }}
+          
     - name: Display request details
       debug:
         msg: |

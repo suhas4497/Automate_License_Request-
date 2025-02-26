@@ -51,17 +51,17 @@
     - name: Set Azure token
       set_fact:
         access_token: "{{ azure_auth_response.json.access_token }}"
-
+    
     - name: Check License Availability in Azure
       uri:
-        url: "{{ graph_api_endpoint }}/subscriptions/licenses"
+        url: "{{ graph_api_endpoint }}/subscribedSkus"
         method: GET
         headers:
           Authorization: "Bearer {{ access_token }}"
           Content-Type: "application/json"
         return_content: yes
       register: azure_license_response
-
+    
     - name: Display license availability
       debug:
         msg: "Available Licenses: {{ azure_license_response.json }}"      

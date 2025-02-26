@@ -1,5 +1,5 @@
 ---
-- name: Fetch Pending ServiceNow Requests
+- name: License Assignment Workflow
   hosts: localhost
   gather_facts: no
   vars:
@@ -11,8 +11,8 @@
     client_id: "e2e46ae3-2dee-4eed-a074-ddffd760ab2b"
     client_secret: "PQZ8Q~XSmMsU4dbgk2KyWMHK1h8X7ciD~H.1_csi"
     graph_api_endpoint: "https://graph.microsoft.com/v1.0"
-    
-    tasks:
+
+  tasks:
     - name: Fetch pending requests from ServiceNow
       uri:
         url: "{{ servicenow_instance }}/api/now/table/{{ servicenow_table }}?sysparm_query=request_state=Pending Approval"
@@ -34,7 +34,7 @@
           Description: {{ request.get('description', 'Not Provided') }}
           ------------------------------------------------
           {% endfor %}
-          
+
     - name: Get Azure access token
       uri:
         url: "https://login.microsoftonline.com/{{ tenant_id }}/oauth2/v2.0/token"
@@ -51,18 +51,18 @@
     - name: Set Azure token
       set_fact:
         access_token: "{{ azure_auth_response.json.access_token }}"
-    
+
     - name: Check License Availability in Azure
       uri:
-        url: "{{ graph_api_endpoint }}/subscribedSkus"
+        url: "{{ graph_api_endpoint }}/subscriptions/licenses"
         method: GET
         headers:
           Authorization: "Bearer {{ access_token }}"
           Content-Type: "application/json"
         return_content: yes
       register: azure_license_response
-    
-    - name: Add dummy license data for testing (remove this after u have real lic)
+
+    - name: Add dummy license data for testing
       set_fact:
         azure_license_response:
           json:
@@ -76,11 +76,11 @@
                 skuPartNumber: "TEST_LICENSE_2"
                 prepaidUnits:
                   enabled: 10
-                consumedUnits: 7  
-    
+                consumedUnits: 7
+
     - name: Display license availability
       debug:
-        msg: "Available Licenses: {{ azure_license_response.json }}"      
+        msg: "Available Licenses: {{ azure_license_response.json }}"
 
     - name: Fetch approval status from Approver Group
       uri:
@@ -90,8 +90,8 @@
         password: "{{ servicenow_password }}"
         force_basic_auth: yes
         return_content: yes
-      register: approval_response    
-     
+      register: approval_response
+
     - name: Display approval status
       debug:
         msg: |
@@ -101,7 +101,7 @@
           Approver: {{ approval.get('approver', {}).get('value', 'Unknown') }}
           ------------------------------------------------
           {% endfor %}
-    
+
     - name: Update request status based on approval
       uri:
         url: "{{ servicenow_instance }}/api/now/table/{{ servicenow_table }}/{{ item.sys_id }}"
@@ -114,5 +114,4 @@
         body_format: json
         status_code: 200
       loop: "{{ approval_response.json.result }}"
-      when: item.state in ['approved', 'denied'] 
-  
+      when: item.state in ['approved', 'denied']

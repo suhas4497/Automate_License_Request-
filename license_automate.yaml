@@ -11,7 +11,7 @@
     client_id: "e2e46ae3-2dee-4eed-a074-ddffd760ab2b"
     client_secret: "PQZ8Q~XSmMsU4dbgk2KyWMHK1h8X7ciD~H.1_csi"
     graph_api_endpoint: "https://graph.microsoft.com/v1.0"
-
+    
   tasks:
     - name: Fetch pending requests from ServiceNow
       uri:
@@ -30,7 +30,7 @@
             servicenow_response.json.result |
             items2dict(key_name='number', value_name='short_description')
           }}
-
+          
     - name: Display request details
       debug:
         msg: |
@@ -42,7 +42,7 @@
           Description: {{ request.get('description', 'Not Provided') }}
           ------------------------------------------------
           {% endfor %}
-
+          
     - name: Get Azure access token
       uri:
         url: "https://login.microsoftonline.com/{{ tenant_id }}/oauth2/v2.0/token"
@@ -59,7 +59,7 @@
     - name: Set Azure token
       set_fact:
         access_token: "{{ azure_auth_response.json.access_token }}"
-
+    
     - name: Check License Availability in Azure
       uri:
         url: "{{ graph_api_endpoint }}/subscribedSkus"
@@ -69,8 +69,8 @@
           Content-Type: "application/json"
         return_content: yes
       register: azure_license_response
-
-    - name: Add dummy license data for testing (remove this after real data is available)
+      
+    - name: Add dummy license data for testing (remove this after u have real lic)
       set_fact:
         azure_license_response:
           json:
@@ -85,34 +85,49 @@
                 prepaidUnits:
                   enabled: 10
                 consumedUnits: 7
+                
+    - name: Display license availability
+      debug:
+        msg: "Available Licenses: {{ azure_license_response.json }}"
 
-    - name: Determine approval status based on license availability
-      set_fact:
-        approval_status_map: >-
-          {{
-            dict(requested_license_map | dict2items | map(attribute='key') | zip(
-              requested_license_map | dict2items | map(attribute='value') | map('trim') |
-              map('in', azure_license_response.json.value | map(attribute='skuPartNumber') | list) |
-              map('ternary', 'approved', 'rejected')
-            ))
-          }}
+    - name: Process License Approval
+      block:
+        - name: Check License Availability
+          set_fact:
+            approval_status_map: >-
+              {%- set status_map = {} -%}
+              {%- for request_number, license_type in requested_license_map.items() -%}
+                {%- set clean_license_type = license_type | lower | regex_replace(' requested', '') -%}
+                {%- set found = false -%}
+                {%- for license in azure_license_response.json.value -%}
+                  {%- if license.skuPartNumber | lower == clean_license_type -%}
+                    {%- set _ = status_map.update({request_number: 'approved'}) -%}
+                    {%- set found = true -%}
+                  {%- endif -%}
+                {%- endfor -%}
+                {%- if not found -%}
+                  {%- set _ = status_map.update({request_number: 'rejected'}) -%}
+                {%- endif -%}
+              {%- endfor -%}
+              {{ status_map }}
 
-    - name: Update ServiceNow request status
-      uri:
-        url: "{{ servicenow_instance }}/api/now/table/{{ servicenow_table }}"
-        method: PATCH
-        user: "{{ servicenow_username }}"
-        password: "{{ servicenow_password }}"
-        force_basic_auth: yes
-        headers:
-          Content-Type: "application/json"
-        body_format: json
-        body: >-
-          {{
-            {
-              "state": "approved" if approval_status_map[item.key] == "approved" else "rejected"
-            }
-          }}
-      loop: "{{ approval_status_map | dict2items }}"
-      loop_control:
-        label: "Updating request {{ item.key }} to {{ item.value }}"
+        - name: Update Approval Status in ServiceNow
+          uri:
+            url: "{{ servicenow_instance }}/api/now/table/{{ servicenow_table }}/{{ item.key }}"
+            method: PATCH
+            user: "{{ servicenow_username }}"
+            password: "{{ servicenow_password }}"
+            force_basic_auth: yes
+            headers:
+              Content-Type: "application/json"
+            body_format: json
+            body:
+              approval: "{{ item.value }}"
+            return_content: yes
+          loop: "{{ approval_status_map | dict2items }}"
+          when: approval_status_map is not none
+
+        - name: Display Approval Results
+          debug:
+            msg: 
+              - "Approval Status Updated: {{ approval_status_map }}"

@@ -81,3 +81,38 @@
     - name: Display license availability
       debug:
         msg: "Available Licenses: {{ azure_license_response.json }}"      
+
+    - name: Fetch approval status from Approver Group
+      uri:
+        url: "{{ servicenow_instance }}/api/now/table/sysapproval_approver"
+        method: GET
+        user: "{{ servicenow_username }}"
+        password: "{{ servicenow_password }}"
+        force_basic_auth: yes
+        return_content: yes
+      register: approval_response    
+     
+    - name: Display approval status
+      debug:
+        msg: |
+          {% for approval in approval_response.json.result %}
+          Request Number: {{ approval.get('sys_id', 'N/A') }}
+          Approval State: {{ approval.get('state', 'Unknown') }}
+          Approver: {{ approval.get('approver', {}).get('value', 'Unknown') }}
+          ------------------------------------------------
+          {% endfor %}
+    
+    - name: Update request status based on approval
+      uri:
+        url: "{{ servicenow_instance }}/api/now/table/{{ servicenow_table }}/{{ item.sys_id }}"
+        method: PATCH
+        user: "{{ servicenow_username }}"
+        password: "{{ servicenow_password }}"
+        force_basic_auth: yes
+        body:
+          state: "{{ 'Approved' if item.state == 'approved' else 'Denied' }}"
+        body_format: json
+        status_code: 200
+      loop: "{{ approval_response.json.result }}"
+      when: item.state in ['approved', 'denied'] 
+  

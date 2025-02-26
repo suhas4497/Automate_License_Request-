@@ -23,14 +23,13 @@
         return_content: yes
       register: servicenow_response
 
-    - name: Store Requested License Type with sys_id
+    - name: Store Requested License Type
       set_fact:
         requested_license_map: >-
-          {%- set mapping = {} -%}
-          {%- for request in servicenow_response.json.result -%}
-            {%- set _ = mapping.update({ request.sys_id: request.short_description }) -%}
-          {%- endfor -%}
-          {{ mapping }}
+          {{
+            servicenow_response.json.result |
+            items2dict(key_name='sys_id', value_name='short_description')
+          }}
 
     - name: Display request details
       debug:
@@ -71,25 +70,9 @@
         return_content: yes
       register: azure_license_response
 
-    - name: Add dummy license data for testing (remove this after real data is available)
-      set_fact:
-        azure_license_response:
-          json:
-            value:
-              - id: "dummy-license-1"
-                skuPartNumber: "TEST_LICENSE_1"
-                prepaidUnits:
-                  enabled: 5
-                consumedUnits: 3
-              - id: "dummy-license-2"
-                skuPartNumber: "TEST_LICENSE_2"
-                prepaidUnits:
-                  enabled: 10
-                consumedUnits: 7
-
-    - name: Display license availability
+    - name: Debug available Azure licenses
       debug:
-        msg: "Available Licenses: {{ azure_license_response.json }}"
+        msg: "{{ azure_license_response.json.value }}"
 
     - name: Process License Approval
       block:
@@ -101,24 +84,24 @@
                 {%- set clean_license_type = license_type | lower | regex_replace(' requested', '') -%}
                 {%- set found = false -%}
                 {%- for license in azure_license_response.json.value -%}
-                  {%- if license.skuPartNumber | lower == clean_license_type -%}
-                    {%- set _ = status_map.update({sys_id: 'approved'}) -%}
+                  {%- if license.skuPartNumber | lower == clean_license_type and license.prepaidUnits.enabled > license.consumedUnits -%}
+                    {%- set _ = status_map.update({sys_id: {'approval': 'approved', 'sys_id': sys_id }}) -%}
                     {%- set found = true -%}
                   {%- endif -%}
                 {%- endfor -%}
                 {%- if not found -%}
-                  {%- set _ = status_map.update({sys_id: 'rejected'}) -%}
+                  {%- set _ = status_map.update({sys_id: {'approval': 'rejected', 'sys_id': sys_id }}) -%}
                 {%- endif -%}
               {%- endfor -%}
               {{ status_map }}
 
-        - name: Debug approval status map before update
+        - name: Debug approval status mapping
           debug:
-            msg: "Approval status per sys_id: {{ approval_status_map }}"
+            msg: "Approval Status Map: {{ approval_status_map }}"
 
-        - name: Update Approval Status in ServiceNow using sys_id
+        - name: Update Approval Status in ServiceNow
           uri:
-            url: "{{ servicenow_instance }}/api/now/table/{{ servicenow_table }}/{{ item.key }}"
+            url: "{{ servicenow_instance }}/api/now/table/{{ servicenow_table }}/{{ item.value.sys_id }}"
             method: PATCH
             user: "{{ servicenow_username }}"
             password: "{{ servicenow_password }}"
@@ -127,11 +110,12 @@
               Content-Type: "application/json"
             body_format: json
             body:
-              approval: "{{ item.value }}"
+              approval: "{{ item.value.approval }}"
             return_content: yes
           loop: "{{ approval_status_map | dict2items }}"
           when: approval_status_map is not none
 
         - name: Display Approval Results
           debug:
-            msg: "Approval Status Updated: {{ approval_status_map }}"
+            msg: 
+              - "Approval Status Updated: {{ approval_status_map }}"

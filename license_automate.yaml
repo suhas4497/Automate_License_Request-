@@ -103,7 +103,7 @@
                 {%- set clean_license_type = license_type | lower | regex_replace(' requested', '') -%}
                 {%- set found = false -%}
                 {%- for license in azure_license_response.json.value -%}
-                  {%- if license.skuPartNumber | lower == clean_license_type -%}
+                  {%- if license.skuPartNumber | lower == clean_license_type and license.prepaidUnits.enabled > license.consumedUnits -%}
                     {%- set _ = status_map.update({request_sys_id: 'approved'}) -%}
                     {%- set found = true -%}
                   {%- endif -%}

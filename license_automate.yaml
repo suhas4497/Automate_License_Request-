@@ -97,16 +97,16 @@
           set_fact:
             approval_status_map: {}
 
-        - name: Check License Availability
+        - name: Check Azure License Availability and Approve or Reject
           set_fact:
             approval_status_map: >-
-              {%- set status_map = approval_status_map -%}
+              {%- set status_map = {} -%}
               {%- for request in servicenow_response.json.result -%}
                 {%- set request_sys_id = request.sys_id -%}
-                {%- if servicenow_response.json.result | length > 0 -%}  # Check if ServiceNow has requests
-                  {%- set _ = status_map.update({request_sys_id: 'approved'}) -%}  # Approve if requests are present
+                {%- if azure_license_response.json.value | length > 0 -%}  # Check if Azure has licenses
+                  {%- set _ = status_map.update({request_sys_id: 'approved'}) -%}  # Approve if licenses are available
                 {%- else -%}
-                  {%- set _ = status_map.update({request_sys_id: 'rejected'}) -%}  # Reject if no requests
+                  {%- set _ = status_map.update({request_sys_id: 'rejected'}) -%}  # Reject if no licenses
                 {%- endif -%}
               {%- endfor -%}
               {{ status_map }}

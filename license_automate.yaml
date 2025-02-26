@@ -7,7 +7,7 @@
     servicenow_username: "admin"
     servicenow_password: "%ml4Vs9RXE/s"
     servicenow_table: "sc_request"
-
+    
   tasks:
     - name: Fetch pending requests from ServiceNow
       uri:
@@ -17,17 +17,13 @@
         password: "{{ servicenow_password }}"
         force_basic_auth: yes
         return_content: yes
-        status_code: 200
-      register: response
+      register: servicenow_response
 
-    - name: Display request details
+    - name: Extract necessary details from requests
+      set_fact:
+        requests_list: "{{ servicenow_response.json.result | map(attribute='sys_id') | list }}"
+
+    - name: Display extracted request information
       debug:
-        msg: |
-          {% for request in response.json.result %}
-          Request Number: {{ request.get('number', 'N/A') }}
-          User ID (Requested For): {{ request.get('requested_for', {}).get('value', 'Unknown') }}
-          User ID (Opened By): {{ request.get('opened_by', {}).get('value', 'Unknown') }}
-          Requested License Type: {{ request.get('short_description', 'Not Provided') }}
-          Description: {{ request.get('description', 'Not Provided') }}
-          ------------------------------------------------
-          {% endfor %}
+        msg: "Processing request ID: {{ item }}"
+      loop: "{{ requests_list }}"

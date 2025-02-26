@@ -15,7 +15,7 @@
   tasks:
     - name: Fetch pending requests from ServiceNow
       uri:
-        url: "{{ servicenow_instance }}/api/now/table/{{ servicenow_table }}?sysparm_query=request_state=Pending Approval"
+        url: "{{ servicenow_instance }}/api/now/table/{{ servicenow_table }}?sysparm_query=request_state=requested"
         method: GET
         user: "{{ servicenow_username }}"
         password: "{{ servicenow_password }}"

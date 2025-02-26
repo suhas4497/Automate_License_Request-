@@ -93,7 +93,7 @@
 
     - name: Process License Approval
       block:
-        - name: Initialize approval status map
+        - name: Initialize approval status map as a dictionary
           set_fact:
             approval_status_map: {}
 

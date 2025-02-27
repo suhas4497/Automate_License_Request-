@@ -99,11 +99,19 @@
 
         - name: Check Azure License Availability and Approve or Reject
           set_fact:
-            approval_status_map: "{{ 
-              servicenow_response.json.result | 
-              map(attribute='sys_id') | 
-              zip_longest([], fillvalue='approved' if azure_license_response.json.value | length > 0 else 'rejected') | 
-              dict }}"
+            approval_status_map: "{{ status_map }}"
+          vars:
+            status_map: >-
+              {% set result = {} %}
+              {% for request in servicenow_response.json.result %}
+                {% set request_sys_id = request.sys_id %}
+                {% if azure_license_response.json.value | length > 0 %}
+                  {% set _ = result.update({request_sys_id: 'approved'}) %}
+                {% else %}
+                  {% set _ = result.update({request_sys_id: 'rejected'}) %}
+                {% endif %}
+              {% endfor %}
+              {{ result }}
 
         - name: Update Approval Status in ServiceNow
           uri:

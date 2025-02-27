@@ -93,32 +93,23 @@
 
     - name: Process License Approval
       block:
-        - name: Initialize approval status map as a dictionary
+        - name: Create approval status map
           set_fact:
-            approval_status_map: {}
+            license_available: false
 
-        - name: Check Azure License Availability and Approve or Reject
+        - name: Check if TEST_LICENSE_1 is available
           set_fact:
-            approval_status_map: "{{ result }}"
+            license_available: true
+          when: >
+            azure_license_response.json.value | selectattr('skuPartNumber', 'equalto', 'TEST_LICENSE_1') | list | length > 0
+
+        - name: Create approval status dictionary
+          set_fact:
+            approval_status_map: "{{ dict(request_map) }}"
           vars:
-            result: >-
-              {% set status_dict = {} %}
-              {% for request in servicenow_response.json.result %}
-                {% set request_sys_id = request.sys_id %}
-                {% set license_type = request.short_description | default('TEST_LICENSE_1') %}
-                {% set license_available = false %}
-                {% for license in azure_license_response.json.value %}
-                  {% if license.skuPartNumber == license_type and (license.prepaidUnits.enabled - license.consumedUnits) > 0 %}
-                    {% set license_available = true %}
-                  {% endif %}
-                {% endfor %}
-                {% if license_available %}
-                  {% set _ = status_dict.update({request_sys_id: 'approved'}) %}
-                {% else %}
-                  {% set _ = status_dict.update({request_sys_id: 'rejected'}) %}
-                {% endif %}
-              {% endfor %}
-              {{ status_dict }}
+            request_map: "{{ servicenow_response.json.result | map(attribute='sys_id') | 
+                          map('regex_replace', '^(.*)$', '\\1=' + (license_available | ternary('approved', 'rejected'))) | 
+                          map('split', '=') | list }}"
 
         - name: Update Approval Status in ServiceNow
           uri:
@@ -132,13 +123,11 @@
             body_format: json
             body:
               approval: "{{ item.value }}"
-              comments: "{% if item.value == 'approved' %}License is available and has been approved.{% else %}License is not available. Request rejected.{% endif %}"
             return_content: yes
           loop: "{{ approval_status_map | dict2items }}"
-          register: update_results
 
         - name: Display Approval Results
           debug:
             msg: 
+              - "License Available: {{ license_available }}"
               - "Approval Status Updated: {{ approval_status_map }}"
-              - "ServiceNow Update Results: {{ update_results }}"

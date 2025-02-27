@@ -97,11 +97,18 @@
           set_fact:
             license_available: false
 
-        - name: Check if TEST_LICENSE_1 is available
+        - name: Check if TEST_LICENSE_1 is available with sufficient licenses
           set_fact:
-            license_available: true
-          when: >
-            azure_license_response.json.value | selectattr('skuPartNumber', 'equalto', 'TEST_LICENSE_1') | list | length > 0
+            license_available: "{{ has_available_licenses }}"
+          vars:
+            test_license: "{{ azure_license_response.json.value | selectattr('skuPartNumber', 'equalto', 'TEST_LICENSE_1') | list | first | default({}) }}"
+            has_available_licenses: >-
+              {{ 
+                test_license is defined and 
+                test_license.prepaidUnits is defined and 
+                test_license.consumedUnits is defined and 
+                (test_license.prepaidUnits.enabled - test_license.consumedUnits) > 0 
+              }}
 
         - name: Create approval status dictionary
           set_fact:

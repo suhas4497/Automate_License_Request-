@@ -153,7 +153,7 @@
               accountEnabled: true
               displayName: "{{ item.requested_for.display_value | default('Suhas N H') }}"
               mailNickname: "{{ item.requested_for.display_value | default('Suhas Asc') | regex_replace('[^a-zA-Z0-9]', '') | lower }}"
-              userPrincipalName: "{{ item.requested_for.display_value | default('suhas') | regex_replace('[^a-zA-Z0-9]', '') | lower }}@yourdomain.com"
+              userPrincipalName: "{{ item.requested_for.display_value | default('suhas') | regex_replace('[^a-zA-Z0-9]', '') | lower }}amitomar63gmail.onmicrosoft.com"
               passwordProfile:
                 forceChangePasswordNextSignIn: true
                 password: "{{ lookup('password', '/dev/null length=16 chars=ascii_letters,digits,punctuation') }}"

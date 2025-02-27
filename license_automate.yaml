@@ -85,7 +85,7 @@
                 skuPartNumber: "TEST_LICENSE_2"
                 prepaidUnits:
                   enabled: 10
-                consumedUnits: 7
+                consumedUnits: 10
 
     - name: Display license availability
       debug:
@@ -101,7 +101,7 @@
           set_fact:
             license_available: "{{ has_available_licenses }}"
           vars:
-            test_license: "{{ azure_license_response.json.value | selectattr('skuPartNumber', 'equalto', 'TEST_LICENSE_1') | list | first | default({}) }}"
+            test_license: "{{ azure_license_response.json.value | selectattr('skuPartNumber', 'equalto', 'TEST_LICENSE_2') | list | first | default({}) }}"
             has_available_licenses: >-
               {{ 
                 test_license is defined and 

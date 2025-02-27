@@ -105,7 +105,7 @@
               {% set status_dict = {} %}
               {% for request in servicenow_response.json.result %}
                 {% set request_sys_id = request.sys_id %}
-                {% set license_type = request.short_description | default('') %}
+                {% set license_type = request.short_description | default('TEST_LICENSE_1') %}
                 {% set license_available = false %}
                 {% for license in azure_license_response.json.value %}
                   {% if license.skuPartNumber == license_type and (license.prepaidUnits.enabled - license.consumedUnits) > 0 %}

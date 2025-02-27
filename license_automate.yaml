@@ -139,78 +139,57 @@
               - "License Available: {{ license_available }}"
               - "Approval Status Updated: {{ approval_status_map }}"
 
-    - name: Create user list for approved requests
-      set_fact:
-        approved_users: >-
-          {%- set users = [] -%}
-          {%- for request in servicenow_response.json.result -%}
-            {%- if request.sys_id in approval_status_map and approval_status_map[request.sys_id] == 'approved' -%}
-              {%- set user_info = {
-                'request_id': request.sys_id,
-                'request_number': request.number,
-                'user_email': request.requested_for.email | default('defaultuser123@yourdomain.com'),
-                'user_name': request.requested_for.name | default('Suhas 123'),
-                'license_type': request.short_description | regex_replace(' requested', ''),
-                'mail_nickname': request.requested_for.name | default('defaultuser') | regex_replace('[^a-zA-Z0-9]', '') | lower,
-                'user_principal_name': request.requested_for.name | default('defaultuser') | regex_replace('[^a-zA-Z0-9]', '') | lower ~ "amitomar63gmail.onmicrosoft.com"
-              } -%}
-              {%- set _ = users.append(user_info) -%}
-            {%- endif -%}
-          {%- endfor -%}
-          {{ users }}
-      when: approval_status_map is defined
-
-    - name: License Assignment Process
+    - name: Create Users in Azure for Approved Requests
       block:
-        - name: Check if user exists in Azure AD
-          uri:
-            url: "{{ graph_api_endpoint }}/users/{{ item.user_principal_name }}"
-            method: GET
-            headers:
-              Authorization: "Bearer {{ access_token }}"
-              Content-Type: "application/json"
-            status_code: [200, 404]
-            return_content: yes
-          register: user_check
-          loop: "{{ approved_users }}"
-          loop_control:
-            label: "{{ item.user_principal_name }}"
-          ignore_errors: yes
-
-        - name: Create User in Azure AD if Not Exists
+        - name: Create Azure user for each approved request
           uri:
             url: "{{ graph_api_endpoint }}/users"
             method: POST
             headers:
               Authorization: "Bearer {{ access_token }}"
               Content-Type: "application/json"
+            body_format: json
             body:
               accountEnabled: true
-              displayName: "{{ item.user_name }}"
-              mailNickname: "{{ item.mail_nickname }}"
-              userPrincipalName: "{{ item.user_principal_name }}"
+              displayName: "{{ item.requested_for.display_value | default('Suhas N H') }}"
+              mailNickname: "{{ item.requested_for.display_value | default('Suhas Asc') | regex_replace('[^a-zA-Z0-9]', '') | lower }}"
+              userPrincipalName: "{{ item.requested_for.display_value | default('suhas') | regex_replace('[^a-zA-Z0-9]', '') | lower }}@yourdomain.com"
               passwordProfile:
                 forceChangePasswordNextSignIn: true
-                password: "Default@1234"
-            body_format: json
-            status_code: [201]
-          register: user_creation
-          when: user_check.results[ansible_loop.index0].status == 404 or user_check.results[ansible_loop.index0] is failed
-          loop: "{{ approved_users }}"
-          loop_control:
-            index_var: ansible_loop.index0
-            label: "{{ item.user_principal_name }}"
-
-        - name: Store created User IDs
-          set_fact:
-            user_id_map: >-
-              {%- set user_map = {} -%}
-              {%- for item in approved_users -%}
-                {%- set user_id = (user_creation.results[loop.index0].json.id | default('')) if user_creation.results[loop.index0] is defined else '' -%}
-                {%- set _ = user_map.update({item.request_id: user_id}) -%}
-              {%- endfor -%}
-              {{ user_map }}
-
-        - name: Debug - Show User Creation Status
+                password: "{{ lookup('password', '/dev/null length=16 chars=ascii_letters,digits,punctuation') }}"
+            status_code: [201, 200]
+          loop: "{{ servicenow_response.json.result }}"
+          when: 
+            - license_available
+            - item.sys_id in approval_status_map and approval_status_map[item.sys_id] == 'approved'
+          register: azure_user_creation
+          ignore_errors: yes
+        
+        - name: Display User Creation Results
           debug:
-            msg: "User Creation Results: {{ user_creation.results | default([]) }}"
+            msg: "User Creation Results: {{ azure_user_creation.results | default([]) }}"
+            
+        - name: Update ServiceNow ticket state to closed complete for approved requests
+          uri:
+            url: "{{ servicenow_instance }}/api/now/table/{{ servicenow_table }}/{{ item.sys_id }}"
+            method: PATCH
+            user: "{{ servicenow_username }}"
+            password: "{{ servicenow_password }}"
+            force_basic_auth: yes
+            headers:
+              Content-Type: "application/json"
+            body_format: json
+            body:
+              request_state: "closed_complete"
+              comments: "Azure user has been created successfully. Ticket closed."
+            return_content: yes
+          loop: "{{ servicenow_response.json.result }}"
+          when: 
+            - license_available
+            - item.sys_id in approval_status_map and approval_status_map[item.sys_id] == 'approved'
+          register: ticket_state_update_results
+          
+        - name: Display Ticket State Update Results
+          debug:
+            msg: "Ticket State Updates: {{ ticket_state_update_results.results | default([]) }}"
+          when: license_available          

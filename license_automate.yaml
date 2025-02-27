@@ -232,3 +232,30 @@
         - name: Debug - Show User ID Map
           debug:
             var: user_id_map
+    
+    - name: Update ServiceNow ticket state to "Closed Complete" for approved requests
+      uri:
+        url: "{{ servicenow_instance }}/api/now/table/{{ servicenow_table }}/{{ item.request_id }}"
+        method: PATCH
+        user: "{{ servicenow_username }}"
+        password: "{{ servicenow_password }}"
+        force_basic_auth: yes
+        headers:
+          Content-Type: "application/json"
+        body_format: json
+        body:
+          request_state: "closed_complete"
+          comments: "Azure user {{ item.user_principal_name }} has been created successfully. Ticket closed."
+        return_content: yes
+      loop: "{{ approved_users }}"
+      loop_control:
+        label: "{{ item.request_number }}"
+      when: 
+        - item.request_id in approval_status_map
+        - approval_status_map[item.request_id] == 'approved'
+        - user_id_map[item.request_id] is defined and user_id_map[item.request_id] | length > 0
+      register: ticket_state_update_results
+
+    - name: Display Ticket State Update Results
+      debug:
+        msg: "ServiceNow Ticket Updates: {{ ticket_state_update_results.results | default([]) }}"

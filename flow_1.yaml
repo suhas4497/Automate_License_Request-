@@ -15,6 +15,10 @@
     requested_license: "{{ license }}"
 
   tasks:
+    - name: Debug Requested Variables
+      debug:
+        msg: "Requested Sys ID: {{ requested_sys_id }}, Requested License: {{ requested_license }}"
+
     - name: Fetch request details from ServiceNow
       uri:
         url: "{{ servicenow_instance }}/api/now/table/{{ servicenow_table }}?sysparm_query=sys_id={{ requested_sys_id }}"
@@ -24,11 +28,7 @@
         force_basic_auth: yes
         return_content: yes
       register: servicenow_response
-      
-    - name: Debug Requested Variables
-      debug:
-        msg: "Requested Sys ID: {{ requested_sys_id }}, Requested License: {{ requested_license }}"
-        
+
     - name: Get Azure access token
       uri:
         url: "https://login.microsoftonline.com/{{ tenant_id }}/oauth2/v2.0/token"
@@ -41,7 +41,7 @@
         body_format: form-urlencoded
         return_content: yes
       register: azure_auth_response
-    
+
     - name: Set Azure token
       set_fact:
         access_token: "{{ azure_auth_response.json.access_token }}"
@@ -71,16 +71,28 @@
                 prepaidUnits:
                   enabled: 10
                 consumedUnits: 10
-                
-    - name: Display license availability
+
+    - name: Debug Available Licenses
       debug:
-        msg: "Available Licenses: {{ azure_license_response.json }}"
-                
+        msg: "{{ item.skuPartNumber }}"
+      loop: "{{ azure_license_response.json.value | default([]) }}"
+
     - name: Check license availability
       set_fact:
-        matched_license: "{{ (azure_license_response.json.value | default([])) | selectattr('skuPartNumber', 'equalto', requested_license | default('')) | list | first | default(None) }}"
+        matched_license: >-
+          {{ (azure_license_response.json.value | default([]) | selectattr('skuPartNumber', 'equalto', requested_license | default(''))) | list | first | default(None) }}
+
+    - name: Debug Matched License
+      debug:
+        msg: "Matched License: {{ matched_license }}"
+
+    - name: Determine License Availability
+      set_fact:
         is_available: "{{ matched_license is not none and matched_license.get('prepaidUnits', {}).get('enabled', 0) > matched_license.get('consumedUnits', 0) }}"
 
+    - name: Debug License Availability
+      debug:
+        msg: "License Available: {{ is_available }}"
 
     - name: Update ServiceNow record with license availability
       uri:

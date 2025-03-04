@@ -74,8 +74,9 @@
                 
     - name: Check license availability
       set_fact:
-        matched_license: "{{ azure_license_response.json.value | selectattr('skuPartNumber', 'equalto', requested_license) | list | first | default({}) }}"
-        is_available: "{{ matched_license is not none and matched_license.prepaidUnits.enabled > matched_license.consumedUnits }}"
+        matched_license: "{{ (azure_license_response.json.value | default([])) | selectattr('skuPartNumber', 'equalto', requested_license | default('')) | list | first | default(None) }}"
+        is_available: "{{ matched_license is not none and matched_license.get('prepaidUnits', {}).get('enabled', 0) > matched_license.get('consumedUnits', 0) }}"
+
 
     - name: Update ServiceNow record with license availability
       uri:

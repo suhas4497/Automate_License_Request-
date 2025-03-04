@@ -13,20 +13,10 @@
     graph_api_endpoint: "https://graph.microsoft.com/v1.0"
     default_user_email: "suhas@yourdomain.com"
     default_user_name: "Suhas 123"
-    default_mail_nickname: "defaultuser"
+    default_mail_nickname: "defaultuser123"
     default_license_type: "E3"
 
   tasks:
-    - name: Fetch pending requests from ServiceNow
-      uri:
-        url: "{{ servicenow_instance }}/api/now/table/{{ servicenow_table }}?sysparm_query=request_state=requested"
-        method: GET
-        user: "{{ servicenow_username }}"
-        password: "{{ servicenow_password }}"
-        force_basic_auth: yes
-        return_content: yes
-      register: servicenow_response
-
     - name: Get Azure access token
       uri:
         url: "https://login.microsoftonline.com/{{ tenant_id }}/oauth2/v2.0/token"
@@ -84,25 +74,3 @@
       debug:
         msg: "User Creation Results: {{ user_creation.results | default([]) }}"
 
-    - name: Update ServiceNow ticket state to "Closed Complete"
-      uri:
-        url: "{{ servicenow_instance }}/api/now/table/{{ servicenow_table }}/{{ item.sys_id }}"
-        method: PATCH
-        user: "{{ servicenow_username }}"
-        password: "{{ servicenow_password }}"
-        force_basic_auth: yes
-        headers:
-          Content-Type: "application/json"
-        body_format: json
-        body:
-          request_state: "closed_complete"
-          comments: "Azure user {{ default_user_name }} has been created successfully. Ticket closed."
-        return_content: yes
-      loop: "{{ servicenow_response.json.result }}"
-      loop_control:
-        label: "{{ item.number }}"
-      register: ticket_state_update_results
-
-    - name: Display Ticket State Update Results
-      debug:
-        msg: "ServiceNow Ticket Updates: {{ ticket_state_update_results.results | default([]) }}"

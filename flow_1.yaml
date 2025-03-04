@@ -1,0 +1,86 @@
+---
+- name: Fetch Pending ServiceNow Requests
+  hosts: localhost
+  gather_facts: no
+  vars:
+    servicenow_instance: "https://dev247928.service-now.com"
+    servicenow_username: "admin"
+    servicenow_password: "%ml4Vs9RXE/s"
+    servicenow_table: "sc_request"
+    tenant_id: "195e8969-c853-47b4-83d0-36e044d83923"
+    client_id: "e2e46ae3-2dee-4eed-a074-ddffd760ab2b"
+    client_secret: "PQZ8Q~XSmMsU4dbgk2KyWMHK1h8X7ciD~H.1_csi"
+    graph_api_endpoint: "https://graph.microsoft.com/v1.0"
+    requested_sys_id: "{{ sysid }}"
+    requested_license: "{{ license }}"
+
+  tasks:
+    - name: Fetch request details from ServiceNow
+      uri:
+        url: "{{ servicenow_instance }}/api/now/table/{{ servicenow_table }}?sysparm_query=sys_id={{ requested_sys_id }}"
+        method: GET
+        user: "{{ servicenow_username }}"
+        password: "{{ servicenow_password }}"
+        force_basic_auth: yes
+        return_content: yes
+      register: servicenow_response
+
+    - name: Get Azure access token
+      uri:
+        url: "https://login.microsoftonline.com/{{ tenant_id }}/oauth2/v2.0/token"
+        method: POST
+        body:
+          client_id: "{{ client_id }}"
+          client_secret: "{{ client_secret }}"
+          scope: "https://graph.microsoft.com/.default"
+          grant_type: "client_credentials"
+        body_format: form-urlencoded
+        return_content: yes
+      register: azure_auth_response
+
+    - name: Set Azure token
+      set_fact:
+        access_token: "{{ azure_auth_response.json.access_token }}"
+
+    - name: Check License Availability in Azure
+      uri:
+        url: "{{ graph_api_endpoint }}/subscribedSkus"
+        method: GET
+        headers:
+          Authorization: "Bearer {{ access_token }}"
+          Content-Type: "application/json"
+        return_content: yes
+      register: azure_license_response
+
+    - name: Add dummy license data for testing (remove this after you have real licenses)
+      set_fact:
+        azure_license_response:
+          json:
+            value:
+              - id: "dummy-license-1"
+                skuPartNumber: "TEST_LICENSE_1"
+                prepaidUnits:
+                  enabled: 5
+                consumedUnits: 3
+              - id: "dummy-license-2"
+                skuPartNumber: "TEST_LICENSE_2"
+                prepaidUnits:
+                  enabled: 10
+                consumedUnits: 10
+
+    - name: Check license availability
+      set_fact:
+        matched_license: "{{ azure_license_response.json.value | selectattr('skuPartNumber', 'equalto', requested_license) | list | first | default({}) }}"
+        is_available: "{{ matched_license is not none and matched_license.prepaidUnits.enabled > matched_license.consumedUnits }}"
+
+    - name: Update ServiceNow record with license availability
+      uri:
+        url: "{{ servicenow_instance }}/api/now/table/{{ servicenow_table }}/{{ requested_sys_id }}"
+        method: PATCH
+        user: "{{ servicenow_username }}"
+        password: "{{ servicenow_password }}"
+        force_basic_auth: yes
+        body:
+          correlation_display: "{{ is_available }}"
+        body_format: json
+        return_content: yes

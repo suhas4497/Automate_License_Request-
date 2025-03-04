@@ -69,8 +69,3 @@
         status_code: [201]
       register: user_creation
       when: user_check.status == 404
-
-    - name: Debug - Show User Creation Results
-      debug:
-        msg: "User Creation Results: {{ user_creation.results | default([]) }}"
-

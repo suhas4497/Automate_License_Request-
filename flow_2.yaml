@@ -11,10 +11,9 @@
     client_id: "e2e46ae3-2dee-4eed-a074-ddffd760ab2b"
     client_secret: "PQZ8Q~XSmMsU4dbgk2KyWMHK1h8X7ciD~H.1_csi"
     graph_api_endpoint: "https://graph.microsoft.com/v1.0"
-    default_user_email: "suhas@yourdomain.com"
-    default_user_name: "Suhas 123"
-    default_mail_nickname: "defaultuser123"
-    default_license_type: "E3"
+    default_user_email: "{{ awx_webhook_payload.user_email }}"
+    default_user_name: "{{ awx_webhook_payload.user_name}}"
+    default_mail_nickname: "{{ awx_webhook_payload.nickname}}"
 
   tasks:
     - name: Get Azure access token

@@ -67,7 +67,11 @@
                 prepaidUnits:
                   enabled: 10
                 consumedUnits: 10
-
+                
+    - name: Display license availability
+      debug:
+        msg: "Available Licenses: {{ azure_license_response.json }}"
+                
     - name: Check license availability
       set_fact:
         matched_license: "{{ azure_license_response.json.value | selectattr('skuPartNumber', 'equalto', requested_license) | list | first | default({}) }}"

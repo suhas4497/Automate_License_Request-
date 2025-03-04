@@ -24,7 +24,11 @@
         force_basic_auth: yes
         return_content: yes
       register: servicenow_response
-
+      
+    - name: Debug Requested Variables
+      debug:
+        msg: "Requested Sys ID: {{ requested_sys_id }}, Requested License: {{ requested_license }}"
+        
     - name: Get Azure access token
       uri:
         url: "https://login.microsoftonline.com/{{ tenant_id }}/oauth2/v2.0/token"
@@ -37,7 +41,7 @@
         body_format: form-urlencoded
         return_content: yes
       register: azure_auth_response
-
+    
     - name: Set Azure token
       set_fact:
         access_token: "{{ azure_auth_response.json.access_token }}"

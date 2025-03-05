@@ -4,8 +4,8 @@
   gather_facts: no
   vars:
     servicenow_instance: "https://dev247928.service-now.com"
-    servicenow_username: "admin"
-    servicenow_password: "%ml4Vs9RXE/s"
+    servicenow_username: "{{ service_now_username }}"
+    servicenow_password: "{{ service_now_password }}"
     servicenow_table: "sc_req_item"
     tenant_id: "195e8969-c853-47b4-83d0-36e044d83923"
     client_id: "e2e46ae3-2dee-4eed-a074-ddffd760ab2b"

@@ -76,9 +76,9 @@
         headers:
           Accept: "application/json"
           Content-Type: "application/json"
-        auth:
-          - "{{ servicenow_username }}"
-          - "{{ servicenow_password }}"
+        url_username: "{{ servicenow_username }}"   # Replacing auth with url_username
+        url_password: "{{ servicenow_password }}"   # Replacing auth with url_password
+        force_basic_auth: yes   # Ensures basic auth is used
         body:
           correlation_id: "true"
         body_format: json

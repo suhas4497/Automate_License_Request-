@@ -7,7 +7,7 @@
     servicenow_username: "{{ service_now_username }}"
     servicenow_password: "{{ service_now_password }}"
     servicenow_table: "sc_req_item"
-    tenant_id: "{{ azure_tenant_id }}"
+    tenant_id: "195e8969-c853-47b4-83d0-36e044d83923"
     client_id: "{{ azure_client_id }}"
     client_secret: "{{ azure_client_secret }}"
     graph_api_endpoint: "https://graph.microsoft.com/v1.0"

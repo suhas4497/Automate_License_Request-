@@ -69,18 +69,15 @@
       register: user_creation
       when: user_check.status == 404
 
-    - name: Update ServiceNow Ticket with Correlation ID
+    - name: Update ServiceNow record with license availability if user is created
       uri:
-        url: "{{ servicenow_instance }}/api/now/table/incident/{{ requested_sys_id }}"
+        url: "{{ servicenow_instance }}/api/now/table/{{ servicenow_table }}/{{ requested_sys_id }}"
         method: PATCH
-        headers:
-          Accept: "application/json"
-          Content-Type: "application/json"
-        url_username: "{{ servicenow_username }}"   # Replacing auth with url_username
-        url_password: "{{ servicenow_password }}"   # Replacing auth with url_password
-        force_basic_auth: yes   # Ensures basic auth is used
+        user: "{{ servicenow_username }}"
+        password: "{{ servicenow_password }}"
+        force_basic_auth: yes
         body:
-          correlation_id: "true"
+          correlation_id: "{{ is_available }}"
         body_format: json
-        status_code: [200, 204]
-      when: user_creation is succeeded
+        return_content: yes
+      when: user_creation is defined and user_creation.status == 201

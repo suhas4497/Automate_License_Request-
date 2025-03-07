@@ -11,8 +11,8 @@
     client_secret: "{{ azure_client_secret }}"
     graph_api_endpoint: "https://graph.microsoft.com/v1.0"
     default_user_email: "{{ awx_webhook_payload.user_email }}"
-    default_user_name: "{{ awx_webhook_payload.user_name}}"
-    default_mail_nickname: "{{ awx_webhook_payload.nickname}}"
+    default_user_name: "{{ awx_webhook_payload.user_name }}"
+    default_mail_nickname: "{{ awx_webhook_payload.nickname }}"
     requested_sys_id: "{{ awx_webhook_payload.sys_id }}"
 
   tasks:
@@ -68,3 +68,19 @@
         status_code: [201]
       register: user_creation
       when: user_check.status == 404
+
+    - name: Update ServiceNow Ticket with Correlation ID
+      uri:
+        url: "{{ servicenow_instance }}/api/now/table/incident/{{ requested_sys_id }}"
+        method: PATCH
+        headers:
+          Accept: "application/json"
+          Content-Type: "application/json"
+        auth:
+          - "{{ servicenow_username }}"
+          - "{{ servicenow_password }}"
+        body:
+          correlation_id: "true"
+        body_format: json
+        status_code: [200, 204]
+      when: user_creation is succeeded

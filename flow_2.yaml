@@ -14,6 +14,7 @@
     default_user_name: "{{ awx_webhook_payload.user_name }}"
     default_mail_nickname: "{{ awx_webhook_payload.nickname }}"
     requested_sys_id: "{{ awx_webhook_payload.sysid }}"
+    servicenow_table: "sc_req_item"
 
   tasks:
     - name: Get Azure access token

@@ -78,7 +78,7 @@
         password: "{{ servicenow_password }}"
         force_basic_auth: yes
         body:
-          correlation_id: "{{ is_available }}"
+          correlation_id: "is_available"
         body_format: json
         return_content: yes
       when: user_creation is defined and user_creation.status == 201

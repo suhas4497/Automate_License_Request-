@@ -1,0 +1,99 @@
+---
+- name: Create Users in Azure with Group and Role Assignment
+  hosts: localhost
+  gather_facts: no
+  vars:
+    tenant_id: "195e8969-c853-47b4-83d0-36e044d83923"
+    client_id: "e2e46ae3-2dee-4eed-a074-ddffd760ab2b"
+    client_secret: "PQZ8Q~XSmMsU4dbgk2KyWMHK1h8X7ciD~H.1_csi"
+    graph_api_endpoint: "https://graph.microsoft.com/v1.0"
+    display_name: "{{ azure_ad_display_name }}"
+    first_name: "{{ azure_ad_first_name }}"
+    last_name: "{{ azure_ad_last_name }}"
+    mail_nickname: "{{ azure_ad_mail_nickname }}"
+    user_principal_name: "{{ azure_ad_user_email }}"
+    password: "{{ azure_ad_password }}"
+    group_name: "{{ azure_ad_group_name }}"
+  
+  tasks:
+    - name: Get Azure access token
+      uri:
+        url: "https://login.microsoftonline.com/{{ tenant_id }}/oauth2/v2.0/token"
+        method: POST
+        body:
+          client_id: "{{ client_id }}"
+          client_secret: "{{ client_secret }}"
+          scope: "https://graph.microsoft.com/.default"
+          grant_type: "client_credentials"
+        body_format: form-urlencoded
+        return_content: yes
+      register: azure_auth_response
+
+    - name: Set Azure token
+      set_fact:
+        access_token: "{{ azure_auth_response.json.access_token }}"
+
+    - name: Create user in Azure AD
+      uri:
+        url: "{{ graph_api_endpoint }}/users"
+        method: POST
+        headers:
+          Authorization: "Bearer {{ access_token }}"
+          Content-Type: "application/json"
+        body:
+          accountEnabled: true
+          displayName: "{{ display_name }}"
+          surname: "{{ first_name | default('') }}"
+          givenName: "{{ last_name | default('') }}"
+          mailNickname: "{{ mail_nickname }}"
+          userPrincipalName: "{{ user_principal_name }}"
+          passwordProfile:
+            forceChangePasswordNextSignIn: true
+            password: "{{ password }}"
+        body_format: json
+        return_content: yes
+        status_code: [200, 201]
+      register: create_user_response
+    
+    # Group assignment section
+    - name: Get group ID by name
+      uri:
+        url: "{{ graph_api_endpoint }}/groups?$filter=displayName eq '{{ group_name }}'"
+        method: GET
+        headers:
+          Authorization: "Bearer {{ access_token }}"
+          Content-Type: "application/json"
+        return_content: yes
+      register: group_lookup_response
+      when: group_name is defined
+
+    - name: Set group ID from lookup
+      set_fact:
+        group_id: "{{ group_lookup_response.json.value[0].id }}"
+      when: group_lookup_response.json.value | length > 0
+
+    - name: Add user to Azure AD group
+      uri:
+        url: "{{ graph_api_endpoint }}/groups/{{ group_id }}/members/$ref"
+        method: POST
+        headers:
+          Authorization: "Bearer {{ access_token }}"
+          Content-Type: "application/json"
+        body:
+          "@odata.id": "{{ graph_api_endpoint }}/directoryObjects/{{ create_user_response.json.id }}"
+        body_format: json
+        status_code: [204]
+      when: group_id is defined
+      ignore_errors: yes
+    
+    # Role assignment section
+    - name: Get directory roles
+      uri:
+        url: "{{ graph_api_endpoint }}/directoryRoles"
+        method: GET
+        headers:
+          Authorization: "Bearer {{ access_token }}"
+          Content-Type: "application/json"
+        return_content: yes
+      register: roles_response
+      when: create_user_response.status in [200, 201]

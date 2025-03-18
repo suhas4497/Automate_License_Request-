@@ -67,9 +67,13 @@
         user_id: "{{ create_user_response.json.id }}"
 
     # **Group Assignment Section**
+    - name: Encode group name for URL
+      set_fact:
+        encoded_group_name: "{{ group_name | urlencode }}"
+    
     - name: Get group ID by name
       uri:
-        url: "{{ graph_api_endpoint }}/groups?$filter={{ 'displayName eq ' + \"'\" + group_name + \"'\" | urlencode }}"
+        url: "{{ graph_api_endpoint }}/groups?$filter=displayName%20eq%20'{{ encoded_group_name }}'"
         method: GET
         headers:
           Authorization: "Bearer {{ access_token }}"
@@ -77,8 +81,6 @@
         return_content: yes
       register: group_lookup_response
       when: group_name is defined
-
-
 
     - name: Set group ID
       set_fact:

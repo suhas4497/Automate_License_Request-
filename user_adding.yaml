@@ -7,6 +7,7 @@
     client_id: "e2e46ae3-2dee-4eed-a074-ddffd760ab2b"
     client_secret: "PQZ8Q~XSmMsU4dbgk2KyWMHK1h8X7ciD~H.1_csi"
     graph_api_endpoint: "https://graph.microsoft.com/v1.0"
+    role_name: "{{ role_name }}"
     display_name: "{{ azure_ad_display_name }}"
     first_name: "{{ azure_ad_first_name }}"
     last_name: "{{ azure_ad_last_name }}"
@@ -14,7 +15,7 @@
     user_principal_name: "{{ azure_ad_user_email }}"
     password: "{{ azure_ad_password }}"
     group_name: "{{ azure_ad_group_name }}"
-  
+
   tasks:
     - name: Get Azure access token
       uri:
@@ -43,8 +44,8 @@
         body:
           accountEnabled: true
           displayName: "{{ display_name }}"
-          surname: "{{ first_name | default('') }}"
-          givenName: "{{ last_name | default('') }}"
+          surname: "{{ last_name | default('') }}"
+          givenName: "{{ first_name | default('') }}"
           mailNickname: "{{ mail_nickname }}"
           userPrincipalName: "{{ user_principal_name }}"
           passwordProfile:
@@ -52,10 +53,14 @@
             password: "{{ password }}"
         body_format: json
         return_content: yes
-        status_code: [200, 201]
+        status_code: [201]
       register: create_user_response
-    
-    # Group assignment section
+
+    - name: Extract user ID
+      set_fact:
+        user_id: "{{ create_user_response.json.id }}"
+
+    # **Group Assignment Section**
     - name: Get group ID by name
       uri:
         url: "{{ graph_api_endpoint }}/groups?$filter=displayName eq '{{ group_name }}'"
@@ -67,7 +72,7 @@
       register: group_lookup_response
       when: group_name is defined
 
-    - name: Set group ID from lookup
+    - name: Set group ID
       set_fact:
         group_id: "{{ group_lookup_response.json.value[0].id }}"
       when: group_lookup_response.json.value | length > 0
@@ -80,20 +85,38 @@
           Authorization: "Bearer {{ access_token }}"
           Content-Type: "application/json"
         body:
-          "@odata.id": "{{ graph_api_endpoint }}/directoryObjects/{{ create_user_response.json.id }}"
+          "@odata.id": "{{ graph_api_endpoint }}/directoryObjects/{{ user_id }}"
         body_format: json
         status_code: [204]
       when: group_id is defined
       ignore_errors: yes
-    
-    # Role assignment section
-    - name: Get directory roles
+
+    # **Role Assignment Section**
+    - name: Get directory role ID by name
       uri:
-        url: "{{ graph_api_endpoint }}/directoryRoles"
+        url: "{{ graph_api_endpoint }}/directoryRoles?$filter=displayName eq '{{ role_name }}'"
         method: GET
         headers:
           Authorization: "Bearer {{ access_token }}"
           Content-Type: "application/json"
         return_content: yes
-      register: roles_response
-      when: create_user_response.status in [200, 201]
+      register: role_lookup_response
+
+    - name: Set role ID
+      set_fact:
+        role_id: "{{ role_lookup_response.json.value[0].id }}"
+      when: role_lookup_response.json.value | length > 0
+
+    - name: Assign user to role
+      uri:
+        url: "{{ graph_api_endpoint }}/directoryRoles/{{ role_id }}/members/$ref"
+        method: POST
+        headers:
+          Authorization: "Bearer {{ access_token }}"
+          Content-Type: "application/json"
+        body:
+          "@odata.id": "{{ graph_api_endpoint }}/directoryObjects/{{ user_id }}"
+        body_format: json
+        status_code: [204]
+      when: role_id is defined
+      ignore_errors: yes

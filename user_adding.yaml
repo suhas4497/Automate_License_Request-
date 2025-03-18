@@ -69,7 +69,7 @@
     # **Group Assignment Section**
     - name: Get group ID by name
       uri:
-        url: "{{ graph_api_endpoint }}/groups?$filter=displayName eq '{{ group_name }}'"
+        url: "{{ graph_api_endpoint }}/groups?$filter={{ 'displayName eq ' + group_name | urlencode }}"
         method: GET
         headers:
           Authorization: "Bearer {{ access_token }}"
@@ -77,6 +77,7 @@
         return_content: yes
       register: group_lookup_response
       when: group_name is defined
+
 
     - name: Set group ID
       set_fact:

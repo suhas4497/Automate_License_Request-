@@ -7,14 +7,20 @@
     client_id: "e2e46ae3-2dee-4eed-a074-ddffd760ab2b"
     client_secret: "PQZ8Q~XSmMsU4dbgk2KyWMHK1h8X7ciD~H.1_csi"
     graph_api_endpoint: "https://graph.microsoft.com/v1.0"
-    role_name: "{{ role_name }}"
-    display_name: "{{ azure_ad_display_name }}"
+    
+    # User Information from JSON Input
     first_name: "{{ azure_ad_first_name }}"
-    last_name: "{{ azure_ad_last_name }}"
-    mail_nickname: "{{ azure_ad_mail_nickname }}"
-    user_principal_name: "{{ azure_ad_user_email }}"
-    password: "{{ azure_ad_password }}"
-    group_name: "{{ azure_ad_group_name }}"
+    last_name: "{{ azure_ad_last_name | default('') }}"
+
+    # Constructed User Attributes
+    display_name: "{{ first_name }} {{ last_name }}"
+    mail_nickname: "{{ first_name }}"
+    user_principal_name: "{{ first_name }}{{ last_name }}@amitomar63gmail.onmicrosoft.com"
+    
+    # Password (Predefined)
+    password: "Ascendion@123"
+    group_name: "AS"
+    role_name: "AI Administrator"
 
   tasks:
     - name: Get Azure access token
@@ -44,8 +50,8 @@
         body:
           accountEnabled: true
           displayName: "{{ display_name }}"
-          surname: "{{ last_name | default('') }}"
-          givenName: "{{ first_name | default('') }}"
+          surname: "{{ last_name }}"
+          givenName: "{{ first_name }}"
           mailNickname: "{{ mail_nickname }}"
           userPrincipalName: "{{ user_principal_name }}"
           passwordProfile:
